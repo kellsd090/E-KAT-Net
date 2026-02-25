@@ -7,97 +7,69 @@ import torch.optim as optim
 from tqdm import tqdm
 from collections import Counter
 import numpy as np
-
 from dataset_cifar10 import get_dataloader, add_coordinate_encoding
 from model import ECGKANModel, seed_everything, SplineWeightLayer, FastKANLayer
 
 
 def kan_optimal_loss(outputs, targets, model, epoch,
-                     lamb=5e-5,  # 基础 L1 强度
-                     mu=4e-3,  # 路径竞争强度
-                     gamma_smth=2e-2,  # 样条平滑度
+                     lamb=5e-5,  # Basic L1 Strength
+                     mu=4e-3,  # Path competition intensity
+                     gamma_smth=2e-2,  # Spline smoothness
                      mu_att=1e-3,
-                     reg=1e-5):  # W1 稀疏约束
-
-    # 1. 基础分类损失 (适配 Mixup)
-    if epoch >= 60:
-        reg = 7.5e-7
-
+                     reg=1e-5):  # W1 sparsity constraint
+    if epoch >= 60: reg = 7.5e-7
     if targets.ndim > 1:
         ce_loss = torch.mean(torch.sum(-targets * F.log_softmax(outputs, dim=-1), dim=-1))
     else:
         ce_loss = F.cross_entropy(outputs, targets, weight=getattr(model, 'class_weights', None))
 
-    # 2. 结构正则化项
-    reg_loss = 0  # 总权重规模
-    entropy_loss = 0  # 突触竞争
-    smooth_loss = 0  # 样条平滑
-    attn_loss = 0  # W1 锐利度
-    stability_reg = 0  # [新增] 专门针对 alpha, beta, theta, gamma 的稳定性约束
+    reg_loss = 0  
+    entropy_loss = 0  
+    smooth_loss = 0  
+    attn_loss = 0  
+    stability_reg = 0  
 
     for m in model.modules():
-        # --- A. 样条层核心正则 (KAN 的基石) ---
         if hasattr(m, 'spline_weights'):
-            # 基础 L1
             reg_loss += torch.sum(torch.abs(m.spline_weights)) / m.num_coeffs
             reg_loss += torch.sum(torch.abs(m.base_scales))
 
-            # 二阶差分平滑
             w = m.spline_weights
             diff2 = w[:, :, 2:] - 2 * w[:, :, 1:-1] + w[:, :, :-2]
             smooth_loss += torch.mean(diff2 ** 2)
 
-            # 路径熵正则
             edge_strengths = torch.mean(torch.abs(w), dim=-1) + torch.abs(m.base_scales)
             prob = F.softmax(edge_strengths / 0.1, dim=0)
             entropy_loss += -torch.sum(prob * torch.log(prob + 1e-8)) / m.out_neurons
 
-            # W1 注意力稀疏性
             if hasattr(m, 'last_W1') and m.last_W1 is not None:
                 attn_loss += torch.mean(m.last_W1 ** 2)
 
-        # --- B. 空间与特征算子正则 (超集证明区) ---
         if hasattr(m, 'W2') and hasattr(m, 'W3_conv'):
-            # 1. 对 W2 和 W3 权重执行极弱 L1，仅为滤除微小噪声
             reg_loss += torch.mean(torch.abs(m.W2)) + torch.mean(torch.abs(m.b))
             reg_loss += torch.mean(torch.abs(m.W3_conv.weight))
-
-            # 2. 对 α, β, θ, γ 使用 L2 惩罚
-            # 权重设为 0.01，配合 lamb (5e-5) 后有效强度仅为 5e-7
-            # 这不足以让它们消失，但能有效防止梯度爆炸产生的 NaN
             stability_reg += (m.alpha ** 2 + m.beta ** 2 + m.theta ** 2 + m.gamma ** 2).sum()
 
-    # 3. 动态 Warmup 策略
     warmup = min(1.0, epoch / 5.0)
-
-    # 4. 总损失合成
-    # 注意：stability_reg 直接赋予极小的固定权重，不随 lamb 剧烈波动
     total_loss = ce_loss + \
                  warmup * (lamb * reg_loss +
                            mu * entropy_loss +
                            gamma_smth * smooth_loss +
                            mu_att * attn_loss +
                            reg * stability_reg)
-
-    return total_loss, {
-        "ce": ce_loss.item(),
-        "ent": entropy_loss.item(),
-        "reg": reg_loss.item()
-    }
+    return total_loss, { "ce": ce_loss.item(), "ent": entropy_loss.item(), "reg": reg_loss.item()}
 
 
 def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_fn=None, resume_path=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    save_dir = "/content/drive/MyDrive/KAN_CIFAR10"
+    save_dir = "/content/drive/MyDrive/CIFAR10"
     os.makedirs(save_dir, exist_ok=True)
 
     slow_keys = ['alpha', 'theta', 'omiga']
     mid_keys = ['beta', 'tau', 'temperature', 'gamma']
-
     params_slow, params_mid, params_base = [], [], []
-
     for name, param in model.named_parameters():
         if any(key in name for key in slow_keys):
             params_slow.append(param)
@@ -106,7 +78,6 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
         else:
             params_base.append(param)
 
-    # 2. 构造差异化优化器 (AdamW)
     optimizer = optim.AdamW([
         {'params': params_base, 'lr': lr},
         {'params': params_mid, 'lr': lr * 2.0},
@@ -114,13 +85,11 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
     ], weight_decay=1e-5)
 
     start_epoch = 111
-    best_val_acc = 0.9172  # 填入你当前的准确率
+    best_val_acc = 0.9172  
 
     if resume_path and os.path.exists(resume_path):
-        print(f">>> 正在加载续传文件: {resume_path}")
         checkpoint = torch.load(resume_path, map_location=device)
 
-        # 兼容性检查：如果是完整字典
         if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -128,22 +97,17 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
             if 'best_val_acc' in checkpoint:
                 best_val_acc = checkpoint['best_val_acc']
         else:
-            # 如果是纯权重文件
             model.load_state_dict(checkpoint)
-            start_epoch = 111  # 强制设置为第 18 轮结束
+            start_epoch = 111  
 
-        # 必须注入 initial_lr 以防止调度器报错
         for group in optimizer.param_groups:
             group['lr'] = 5e-5
-            group.setdefault('initial_lr', 1e-3)  # 必须给一个基准值，否则 CosineAnnealing 无法计算比值
-
+            group.setdefault('initial_lr', 1e-3)  
     else:
-        print("未找到权重")
+        print("Weight file not found")
 
-    # 3. 学习率调度器：余弦退火
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, last_epoch=start_epoch - 1)
 
-    # 初始验证
     model.eval()
     init_correct, init_total = 0, 0
     with torch.no_grad():
@@ -160,7 +124,6 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
     early_stop_counter = 0
     early_stop_patience = 10
 
-    # --- 记录文件初始化 (可选，用于后续绘图) ---
     log_file = open("evolution_logs.txt", "w")
     log_file.write("epoch,alpha,beta,theta,gamma,omiga\n")
 
@@ -180,8 +143,6 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
             outputs = model(batch_x)
             loss, info = kan_optimal_loss(outputs, batch_y, model, epoch)
             loss.backward()
-
-            # 4. 梯度裁剪：放宽至 2.0，允许结构参数在梯度引导下产生更强的演化爆发力
             torch.nn.utils.clip_grad_norm_(model.parameters(), 2.0)
             optimizer.step()
 
@@ -191,10 +152,8 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
             else:
                 train_correct += (outputs.argmax(1) == batch_y).sum().item()
             train_total += batch_y.size(0)
-
             pbar.set_postfix(ce=f"{info['ce']:.3f}", acc=f"{100 * train_correct / train_total:.2f}%")
 
-        # 验证逻辑
         model.eval()
         val_correct, val_total = 0, 0
         with torch.no_grad():
@@ -204,11 +163,8 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
                 v_out = model(vx)
                 val_correct += (v_out.argmax(1) == vy).sum().item()
                 val_total += vy.size(0)
-
         val_acc = 100 * val_correct / val_total
         train_acc = 100 * train_correct / train_total
-
-        # --- 核心动态参数监控与输出 ---
         betas, gammas, alphas, thetas = [], [], [], []
         omiga_means = []
         for m in model.modules():
@@ -219,28 +175,23 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
                 gammas.append(torch.abs(m.gamma).mean().item())
             if isinstance(m, FastKANLayer):
                 omiga_means.append(torch.abs(m.omiga).mean().item())
-
         avg_alpha, avg_beta, avg_theta, avg_gamma = np.mean(alphas), np.mean(betas), np.mean(thetas), np.mean(gammas)
         avg_omiga = np.mean(omiga_means)
 
         print(f"\n[Epoch {epoch + 1} Result] Val Acc: {val_acc:.2f}% | Train Acc: {train_acc:.2f}%")
-        # 实时打印四个系数，观察“超集演化”
         print(
             f"  Evolution: α(I)={avg_alpha:.3f} | β(W1)={avg_beta:.3f} | θ(W3)={avg_theta:.3f} | γ(Res)={avg_gamma:.3f}")
         print(f"  Residuals: Omiga Mean={avg_omiga:.4f} | Avg CE: {epoch_ce_loss / len(train_loader):.4f}")
 
-        # 保存到日志文件
         log_file.write(f"{epoch + 1},{avg_alpha},{avg_beta},{avg_theta},{avg_gamma},{avg_omiga}\n")
         log_file.flush()
 
-        # 拓扑审计
         conn = model.get_active_conn_info()
         print("  Topology Audit (Connectivity Ratio):")
-        # 按层名排序后输出
         for layer_name in sorted(conn.keys()):
             d = conn[layer_name]
             print(f"    {layer_name}: {d['ratio'] * 100:.1f}% active | tau_avg: {d['tau_mean']:.4f}")
-
+          
         scheduler.step()
 
         last_path = os.path.join(save_dir, "last_checkpoint.pth")
@@ -250,7 +201,6 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
             'optimizer_state_dict': optimizer.state_dict(),
             'best_val_acc': best_val_acc,
         }, last_path)
-
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             save_path = "/content/drive/MyDrive/KAN_CIFAR10/best_model_8th.pth"
@@ -260,12 +210,10 @@ def train_ecg_model(model, train_loader, val_loader, epochs=135, lr=1e-3, mixup_
             early_stop_counter = 0
         else:
             early_stop_counter += 1
-
         if early_stop_counter >= early_stop_patience:
-            print(f"\n[Early Stopping] 触发。最佳 Acc: {best_val_acc:.2f}%")
+            print(f"\n[Early Stopping], best Acc: {best_val_acc:.2f}%")
             break
         print("-" * 85)
-
     log_file.close()
 
 
@@ -279,26 +227,22 @@ def calculate_class_weights(dataloader, boost_dict={}):
     for idx, factor in boost_dict.items():
         if idx < num_classes:
             weights[idx] = weights[idx] * factor
-            print(f">>> 类别 {idx} (S-Premature) 权重已强化: 原权重 x {factor}")
     final_weights = weights / weights.mean()
     return final_weights
 
 
 if __name__ == "__main__":
     seed_everything(42)
-    # 替换为新的 CIFAR-10 加载器
     train_loader, val_loader, mixup_fn = get_dataloader(
         data_dir=r'dataset/KAN_CIFAR10',
-        batch_size=32
-    )
+        batch_size=32)
     model = ECGKANModel()
-    # 注意：需要把 mixup_fn 传进去，或者在 train 循环里处理
-    #train_ecg_model(model, train_loader, val_loader, mixup_fn=mixup_fn)
-    resume_checkpoint = "/content/drive/MyDrive/KAN_CIFAR10/best_model_7th.pth"
+
+    resume_checkpoint = "/content/drive/MyDrive/KAN_CIFAR10/parameter.pth"
     train_ecg_model(
         model,
         train_loader,
         val_loader,
         mixup_fn=None,
-        resume_path=resume_checkpoint  # 必须传入此路径
-    )
+        resume_path=resume_checkpoint)
+  
