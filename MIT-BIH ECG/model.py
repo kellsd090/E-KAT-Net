@@ -524,7 +524,7 @@ def calculate_model_flops(model, device):
         readable_flops, _ = clever_format([flops, 0], "%.3f")
         print(f"\n" + "=" * 50)
         print(f"   amount of FLOPs:  {readable_flops}")
-        print(f"   GFLOPs 单位: {flops / 1e9:.4f} G")
+        print(f"   GFLOPs : {flops / 1e9:.4f} G")
         print(f"=" * 50 + "\n")
         return flops
     except Exception as e:
