@@ -544,18 +544,18 @@ if __name__ == "__main__":
         state_dict = torch.load(weight_path, map_location=device)
         model.load_state_dict(state_dict, strict=False)
         
+    target_sample_idx = 4  # Change this number to switch the sample.
+    target_layer_idx, target_neuron_idx = 3, 0  # Which layer and which neuron
+    edge = (3, 6)  # which edge
+    target_layer = getattr(model, f'layer{target_layer_idx}')
+    target_layer.visualize_idx = target_neuron_idx
+    
     # tensors[0] represents the data, and tensors[1] represents the label
     sample_data = val_loader.dataset.tensors[0][target_sample_idx].unsqueeze(0)
     sample_label = val_loader.dataset.tensors[1][target_sample_idx]
 
     print(f"\n managing {target_sample_idx} th sample")
     print(f" label : {sample_label.item()}")
-    
-    target_sample_idx = 4  # Change this number to switch the sample.
-    target_layer_idx, target_neuron_idx = 3, 0  # Which layer and which neuron
-    edge = (3, 6)  # which edge
-    target_layer = getattr(model, f'layer{target_layer_idx}')
-    target_layer.visualize_idx = target_neuron_idx
 
     # calculate_model_flops(model, device)
     # count_parameters(model)
