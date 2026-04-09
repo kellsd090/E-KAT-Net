@@ -8,7 +8,7 @@ import random
 import os
 import umap
 import hdbscan
-from thop import profile，clever_format
+from thop import profile, clever_format
 from sklearn.preprocessing import StandardScaler
 from scipy.linalg import toeplitz
 from scipy.ndimage import gaussian_filter, zoom
