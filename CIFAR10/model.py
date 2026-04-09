@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from scipy.linalg import toeplitz
 from scipy.ndimage import gaussian_filter, zoom
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from dataset_cifar10 import get_dataloader, add_coordinate_encoding
+from data_preprocessing import get_dataloader, add_coordinate_encoding
 
 
 def seed_everything(seed=42):
