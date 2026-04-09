@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from scipy.linalg import toeplitz
 from scipy.ndimage import gaussian_filter, zoom
 from matplotlib.collections import LineCollection
-from database_mit import prepare_ecg_data
+from data_preprocessing import prepare_ecg_data
 
 
 def seed_everything(seed=42):
