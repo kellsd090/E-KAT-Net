@@ -15,7 +15,7 @@ from thop import profile, clever_format
 from sklearn.preprocessing import StandardScaler
 from scipy.ndimage import gaussian_filter, zoom
 from matplotlib.collections import LineCollection
-from dataset_gal import WAYEEGDataset, calculate_pos_weights, visualize_waveforms
+from data_preprocessing import WAYEEGDataset, calculate_pos_weights, visualize_waveforms
 
 
 def seed_everything(seed=42):
