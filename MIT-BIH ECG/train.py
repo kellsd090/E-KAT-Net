@@ -6,7 +6,7 @@ from tqdm import tqdm
 from collections import Counter
 import numpy as np
 from database_mit import prepare_ecg_data
-from model_v6_5 import ECGKANModel, seed_everything, SplineWeightLayer, FastKANLayer
+from model import ECGKANModel, seed_everything, SplineWeightLayer, FastKANLayer
 
 
 def kan_optimal_loss(outputs, targets, model, epoch,
