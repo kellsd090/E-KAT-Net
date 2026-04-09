@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import os
-from datapreprocessing_deap_ECG import DEAP_ECG_RegressionDataset, DEAP_GSR_RegressionDataset
+from data_preprocessing import DEAP_ECG_RegressionDataset, DEAP_GSR_RegressionDataset
 
 
 def seed_everything(seed=42):
