@@ -49,7 +49,7 @@ class WAYEEGDataset(Dataset):
 
                 band_raw = butter_bandpass(raw_df, 0.5, 50)
                 band_delta = butter_bandpass(raw_df, 0.5, 4)
-                band_mu = butter_bandpass(raw_df, 8, 13)
+                band_mu = butter_bandpass(raw_df, 4, 13)
                 band_beta = butter_bandpass(raw_df, 13, 30)
                 band_gamma = butter_bandpass(raw_df, 30, 50)
 
