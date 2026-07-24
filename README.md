@@ -136,6 +136,10 @@ E-KAT is evaluated on heterogeneous datasets spanning biomedical signal analysis
 
 The proposed framework achieves competitive accuracy while maintaining a lightweight model size and low computational complexity.
 
+![Framework](picture/W1_cifar.png)
+
+![Framework](picture/W1_EEG.png)
+
 ---
 
 ## Repository Structure
