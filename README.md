@@ -54,7 +54,7 @@ The framework is lightweight, interpretable, and applicable to heterogeneous dat
 
 ## Framework
 
-<img src="picture/E-KAT_structure.png" width="900">
+![Framework](picture/E-KAT_structure.png)
 
 E-KAT organizes computation into three hierarchical levels:
 
