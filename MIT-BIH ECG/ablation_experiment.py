@@ -10,7 +10,8 @@ import umap
 import hdbscan
 import copy
 import time
-from thop import profile, clever_format
+from thop import clever_format
+from thop import profile as thop_profile
 from sklearn.preprocessing import StandardScaler
 from scipy.linalg import toeplitz
 from scipy.ndimage import gaussian_filter, zoom
@@ -843,29 +844,6 @@ def freeze_temperature(model):
             m.temperature.requires_grad = False
 
 
-def calculate_macs(model, device):
-    model.eval()
-    dummy = torch.randn(1, 187, device=device)
-    activities = [ProfilerActivity.CPU]
-    if device.type == "cuda":
-        activities.append(
-            ProfilerActivity.CUDA)
-    with torch.no_grad():
-        with profile(
-            activities=activities,
-            record_shapes=True,
-            with_flops=True
-        ) as prof:
-            _ = model(dummy)
-    total_flops = 0
-    for event in prof.key_averages():
-        if event.flops is not None:
-            total_flops += event.flops
-    # one multiply + one accumulate = 2 FLOPs = 1 MAC
-    macs = total_flops / 2
-    return macs
-
-
 def format_number(n):
     if n >= 1e9:
         return f"{n / 1e9:.4f} G"
@@ -893,22 +871,11 @@ def build_pruned_model(ablate=None):
 def calculate_model_macs(model, device):
     model.eval()
     dummy_input = torch.randn(1, 187, device=device)
-    activities = [ProfilerActivity.CPU]
-    if device.type == "cuda":
-        activities.append(
-            ProfilerActivity.CUDA)
     with torch.no_grad():
-        with profile(
-            activities=activities,
-            record_shapes=True,
-            with_flops=True) as prof:
-            _ = model(dummy_input)
-    total_flops = 0
-    for event in prof.key_averages():
-        if event.flops is not None:
-            total_flops += event.flops
-          
-    macs = total_flops / 2.0
+        macs, _ = thop_profile(
+            model,
+            inputs=(dummy_input,),
+            verbose=False)
     return macs
 
 
