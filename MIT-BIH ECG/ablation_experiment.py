@@ -211,8 +211,7 @@ class ECGKANModel(nn.Module):   # main E-KAT model
                         "active": active_count,
                         "total": m.in_neurons * m.out_neurons,
                         "tau_mean": torch.abs(m.tau).mean().item(),
-                        "ratio": active_count / (m.in_neurons * m.out_neurons + 1e-8)
-                    }
+                        "ratio": active_count / (m.in_neurons * m.out_neurons + 1e-8)}
         return info
 
 
@@ -558,13 +557,8 @@ class FastKANLayerProfile(FastKANLayer):
             'binfc,ioc->bionf',
             basis,
             self.spline_weights)
-        omega_expanded = torch.abs(self.omiga).view(
-            1,
-            in_n,
-            self.out_neurons,
-            1,
-            1)
-
+        omega_expanded = torch.abs(self.omiga).view(1, in_n,
+            self.out_neurons, 1, 1)
         activated_signals = (
             spline_mapping
             + omega_expanded * x_in.unsqueeze(2))
@@ -610,9 +604,7 @@ class FastKANLayerProfile(FastKANLayer):
 
             # No gating
             elif self.gating_mode == "none":
-                mask = torch.ones(
-                    b,
-                    in_n,
+                mask = torch.ones( b, in_n,
                     device=x_in.device,
                     dtype=x_in.dtype)
             else:
@@ -665,24 +657,17 @@ class FastKANLayerProfile(FastKANLayer):
                         raw_attn / ( np.sqrt(K.shape[-1]) * t_val),dim=-1)
                 else:
                     W1_j = F.softmax(
-                        raw_attn
-                        / np.sqrt(K.shape[-1]),
-                        dim=-1)
+                        raw_attn / np.sqrt(K.shape[-1]), dim=-1)
 
             # Edge aggregation
             combined_input = torch.sum(
-                current_edges * mask_expanded,
-                dim=1)
-
+                current_edges * mask_expanded, dim=1)
             out_j, proj_j = self.weight_layers[j](
-                combined_input,
-                W1=W1_j)
-
+                combined_input, W1=W1_j)
             next_outputs.append(out_j)
             next_projections.append(proj_j)
-
-        return (
-            torch.stack(next_outputs, dim=1),
+            
+        return (torch.stack(next_outputs, dim=1),
             torch.stack(next_projections, dim=1))
 
 
