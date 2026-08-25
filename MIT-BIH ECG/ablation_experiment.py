@@ -882,15 +882,13 @@ def calculate_model_macs(model, device):
 # Params and MACs while α,β,θ,γ four modules are removed respectively
 settings = {
     "alpha = 0": "alpha",
-    "beta = 0": "beta",
-    "theta = 0": "theta",
     "gamma = 0": "gamma",
+    "theta = 0": "theta",
+    "beta = 0": "beta",
     "Original": None}
 results = []
 
 for name, ablation in settings.items():
-    print("\n" + "=" * 70)
-    print(f"Profiling: {name}")
     model = build_pruned_model(ablate=ablation)
     total_params, trainable_params = (count_model_params(model))
     macs = calculate_model_macs(model, device)
