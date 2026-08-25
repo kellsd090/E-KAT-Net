@@ -882,9 +882,9 @@ def calculate_model_macs(model, device):
 # Params and MACs while α,β,θ,γ four modules are removed respectively
 settings = {
     "alpha = 0": "alpha",
-    "gamma = 0": "gamma",
-    "theta = 0": "theta",
     "beta = 0": "beta",
+    "theta = 0": "theta",
+    "gamma = 0": "gamma",
     "Original": None}
 results = []
 
