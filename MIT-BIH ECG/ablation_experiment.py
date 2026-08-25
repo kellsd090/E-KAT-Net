@@ -950,9 +950,6 @@ for name, ablation in settings.items():
     print(
         f"{name:12s} | "
         f"Params: {total_params:,} | "
-        f"THOP: {thop_macs / 1e9:.6f} G | "
-        f"Profiler: {profiler_macs / 1e9:.6f} G | "
-        f"Ratio: {retained_ratio:.4f} | "
         f"Final MACs: {calibrated_macs / 1e9:.6f} G")
 
 
@@ -989,4 +986,4 @@ for name, mode in gating_settings.items():
     print(
         f"{name:22s} | "
         f"Params: {params:,} | "
-        f"MACs: {macs/1e9:.4f} G")
+        f"MACs: {macs/1e9:.6f} G")
