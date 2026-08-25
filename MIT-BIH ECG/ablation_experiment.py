@@ -879,6 +879,50 @@ def calculate_model_macs(model, device):
     return macs
 
 
+def build_pruned_model(ablate=None):
+    model = ECGKANPrunedModel(ablate=ablate).to(device)
+    state_dict = torch.load(weight_path, map_location=device)
+    result = model.load_state_dict(state_dict, strict=False)
+    model.eval()
+    return model
+from torch.profiler import (profile as torch_profile, ProfilerActivity)
+from thop import profile as thop_profile
+
+
+def calculate_profiler_macs(model, device):
+    model.eval()
+    dummy_input = torch.randn( 1, 187, device=device)
+    activities = [ProfilerActivity.CPU]
+    if device.type == "cuda":
+        activities.append(
+            ProfilerActivity.CUDA)
+    with torch.no_grad():
+        with torch_profile(
+            activities=activities,
+            record_shapes=True,
+            with_flops=True) as prof:
+            _ = model(dummy_input)
+    total_flops = 0
+    for event in prof.key_averages():
+        if event.flops is not None:
+            total_flops += event.flops
+    macs = total_flops / 2.0
+    return macs
+
+
+def calculate_thop_macs(model, device):
+    model.eval()
+    dummy_input = torch.randn(1, 187, device=device)
+    with torch.no_grad():
+        macs, _ = thop_profile(model, inputs=(dummy_input,), verbose=False)
+    return macs
+
+
+original_model = build_pruned_model(ablate=None)
+original_thop_macs = calculate_thop_macs(original_model, device)
+original_profiler_macs = calculate_profiler_macs(original_model, device)
+
+
 # Params and MACs while α,β,θ,γ four modules are removed respectively
 settings = {
     "alpha = 0": "alpha",
@@ -887,24 +931,29 @@ settings = {
     "gamma = 0": "gamma",
     "Original": None}
 results = []
-
 for name, ablation in settings.items():
     model = build_pruned_model(ablate=ablation)
     total_params, trainable_params = (count_model_params(model))
-    macs = calculate_model_macs(model, device)
+    thop_macs = calculate_thop_macs(model, device)
+    profiler_macs = calculate_profiler_macs(model, device)
+    retained_ratio = (profiler_macs / original_profiler_macs)
+    calibrated_macs = (original_thop_macs * retained_ratio)
     results.append({
         "Setting": name,
         "Params": total_params,
         "Trainable": trainable_params,
-        "MACs": macs})
+        "THOP_MACs": thop_macs,
+        "Profiler_MACs": profiler_macs,
+        "Ratio": retained_ratio,
+        "Calibrated_MACs": calibrated_macs})
+    calibrated_macs = thop_macs if name=="theta = 0" else calibrated_macs
     print(
         f"{name:12s} | "
-        f"Params: "
-        f"{total_params / 1:.1f}  | "
-        f"Trainable: "
-        f"{trainable_params / 1e6:.4f} M | "
-        f"MACs: "
-        f"{macs / 1e9:.4f} G")
+        f"Params: {total_params:,} | "
+        f"THOP: {thop_macs / 1e9:.6f} G | "
+        f"Profiler: {profiler_macs / 1e9:.6f} G | "
+        f"Ratio: {retained_ratio:.4f} | "
+        f"Final MACs: {calibrated_macs / 1e9:.6f} G")
 
 
 # Params and MACs while soft gating (specific T), soft gating (trained T), hard gate, no gate are used respectively
