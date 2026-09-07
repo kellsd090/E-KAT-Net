@@ -140,6 +140,8 @@ The proposed framework achieves competitive accuracy while maintaining a lightwe
 
 ![Framework](picture/W1_EEG.png)
 
+![Framework](picture/W1_BUSBRA.png)
+
 ---
 
 ## Repository Structure
