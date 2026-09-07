@@ -1,17 +1,4 @@
-"""Train the 4-channel E-KAT model on BUS-BRA images.
-
-Expected Colab files:
-    /content/data_preprocessing_busbra.py
-    /content/model_busbra.py
-    /content/train_busbra.py
-
-The loader uses the official BUS-BRA five-fold split.
-Checkpoints contain the complete training state and can resume from the next
-unprocessed batch when num_workers=0.
-"""
-
 from __future__ import annotations
-
 import csv
 import hashlib
 import json
@@ -23,7 +10,6 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -42,7 +28,6 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Sampler
 from tqdm.auto import tqdm
-
 from data_preprocessing_busbra import get_busbra_dataloaders
 from model_busbra import BUSKANModel, FastKANLayer, SplineWeightLayer, count_parameters, seed_everything
 
