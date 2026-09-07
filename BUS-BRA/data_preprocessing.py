@@ -1,12 +1,8 @@
-"""BUS-BRA-only preprocessing and official five-fold data loaders."""
-
 from __future__ import annotations
-
 import csv
 import random
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
-
 import numpy as np
 import torch
 from PIL import Image
